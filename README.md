@@ -12,6 +12,37 @@ This repo is a **small, working, early prototype**. It is not the finished syste
 It shows the pipeline end to end on two datasets. Several parts are only **planned**;
 see [STATUS.md](STATUS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Cloud & DevOps major project: how it is deployed
+
+CloudSleuth's web viewer is deployed on **AWS EC2** by a **Jenkins** pipeline that pulls from
+**GitHub**, builds and tests a **Docker** image, and deploys it. The server is configured by
+**Ansible**, and its firewall is managed by **Terraform**. Every `git push` to `main` redeploys automatically.
+
+```
+laptop --git push--> GitHub --webhook / poll--> Jenkins on EC2 --> docker build --> pytest in the image
+                                                                --> docker run (port 80) --> /health check
+laptop --ansible-playbook--> EC2: swap, Docker, Java, Jenkins, plugins, admin user, pipeline job
+laptop --terraform apply--> AWS: security group (22, 80, 8080) + Ansible inventory with the current IP
+```
+
+| Tool | Where | What it does |
+|---|---|---|
+| AWS | EC2 t3.micro, Ubuntu 26.04, us-east-1 | Runs Jenkins and the app container |
+| Git / GitHub | this repo | Source of truth; Jenkins deploys `main` |
+| Jenkins | [`Jenkinsfile`](Jenkinsfile) | Checkout → Build image → Test → Deploy → Smoke test |
+| Docker | [`Dockerfile`](Dockerfile) | One image: tested, then deployed on port 80 |
+| Ansible | [`infra/ansible/playbook.yml`](infra/ansible/playbook.yml) | Server setup + Jenkins configuration as code |
+| Terraform | [`infra/terraform/main.tf`](infra/terraform/main.tf) | Security group and Ansible inventory |
+
+Set up from scratch (needs the EC2 key at `~/.ssh/devops-project.pem` and AWS Learner Lab credentials):
+
+```bash
+cd infra/terraform && terraform init && terraform apply   # open ports, write the inventory
+cd ../ansible && ansible-playbook playbook.yml              # install and configure Docker + Jenkins
+# Jenkins: http://<EC2 IP>:8080 (user admin, password in infra/ansible/.jenkins-admin-password)
+# App:     http://<EC2 IP>/
+```
+
 ## What it does (in one paragraph)
 
 When something breaks in a microservice app, many services look unhealthy at once. The task
