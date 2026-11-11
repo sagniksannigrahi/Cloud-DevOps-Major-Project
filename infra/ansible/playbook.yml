@@ -16,7 +16,7 @@
     jenkins_admin_password: "{{ lookup('password', playbook_dir + '/.jenkins-admin-password length=20 chars=ascii_letters,digits') }}"
     jenkins_home: /var/lib/jenkins
     jenkins_heap: 384m          # t3.micro has ~1 GB RAM
-    swap_size_mb: 2048
+    swap_size_mb: 1024          # the default 8 GB disk is small, so keep swap at 1 GB
     jenkins_plugins:
       - configuration-as-code
       - job-dsl
@@ -28,15 +28,18 @@
 
   tasks:
     # ---------- Memory: t3.micro needs swap for Jenkins ----------
-    - name: Create swap file
-      ansible.builtin.command: "fallocate -l {{ swap_size_mb }}M /swapfile"
-      args:
-        creates: /swapfile
+    - name: Check the swap file
+      ansible.builtin.stat:
+        path: /swapfile
       register: swapfile
 
-    - name: Enable swap
-      ansible.builtin.shell: chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-      when: swapfile.changed
+    - name: Create (or resize) and enable the swap file
+      ansible.builtin.shell: |
+        swapoff /swapfile 2>/dev/null || true
+        rm -f /swapfile
+        fallocate -l {{ swap_size_mb }}M /swapfile
+        chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+      when: not swapfile.stat.exists or swapfile.stat.size != swap_size_mb * 1024 * 1024
 
     - name: Keep swap after reboot
       ansible.builtin.lineinfile:
@@ -80,6 +83,11 @@
         name: jenkins
         update_cache: true
         state: present
+
+    - name: Free disk space (downloaded .deb files are no longer needed)
+      ansible.builtin.apt:
+        clean: true
+      changed_when: false
 
     - name: Let Jenkins run Docker
       ansible.builtin.user:

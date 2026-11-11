@@ -25,15 +25,23 @@ data "aws_instance" "server" {
     values = [var.instance_name]
   }
   filter {
+    name   = "key-name"
+    values = [var.key_pair_name]
+  }
+  filter {
     name   = "instance-state-name"
     values = ["running"]
   }
 }
 
+data "aws_subnet" "server" {
+  id = data.aws_instance.server.subnet_id
+}
+
 resource "aws_security_group" "cloudsleuth" {
   name        = "cloudsleuth-devops-sg"
   description = "CloudSleuth: SSH, web app (80) and Jenkins (8080)"
-  vpc_id      = data.aws_instance.server.vpc_id
+  vpc_id      = data.aws_subnet.server.vpc_id
 
   ingress {
     description = "SSH (Ansible and admin)"

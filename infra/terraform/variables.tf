@@ -10,6 +10,12 @@ variable "instance_name" {
   default     = "DevOps major project"
 }
 
+variable "key_pair_name" {
+  description = "EC2 key pair the instance was launched with"
+  type        = string
+  default     = "Devops project"
+}
+
 variable "ssh_cidr" {
   description = "Who may SSH in. Set to your own IP (e.g. 1.2.3.4/32) to lock it down."
   type        = string
