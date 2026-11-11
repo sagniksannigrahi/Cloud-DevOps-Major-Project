@@ -1,0 +1,159 @@
+# Configures the EC2 server: swap, Docker, Jenkins (with plugins, admin user and the
+# CloudSleuth pipeline job set up as code, so no clicking through the setup wizard).
+#
+# Run from infra/ansible:   ansible-playbook playbook.yml
+# The Jenkins admin password is generated on first run and saved (not committed) in
+# infra/ansible/.jenkins-admin-password
+
+- name: Set up the CloudSleuth Jenkins + Docker server
+  hosts: jenkins
+  become: true
+
+  vars:
+    github_repo: https://github.com/sagniksannigrahi/Cloud-DevOps-Major-Project.git
+    git_branch: main
+    jenkins_admin_user: admin
+    jenkins_admin_password: "{{ lookup('password', playbook_dir + '/.jenkins-admin-password length=20 chars=ascii_letters,digits') }}"
+    jenkins_home: /var/lib/jenkins
+    jenkins_heap: 384m          # t3.micro has ~1 GB RAM
+    swap_size_mb: 2048
+    jenkins_plugins:
+      - configuration-as-code
+      - job-dsl
+      - workflow-aggregator
+      - git
+      - github
+      - pipeline-stage-view
+      - timestamper
+
+  tasks:
+    # ---------- Memory: t3.micro needs swap for Jenkins ----------
+    - name: Create swap file
+      ansible.builtin.command: "fallocate -l {{ swap_size_mb }}M /swapfile"
+      args:
+        creates: /swapfile
+      register: swapfile
+
+    - name: Enable swap
+      ansible.builtin.shell: chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+      when: swapfile.changed
+
+    - name: Keep swap after reboot
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: /swapfile none swap sw 0 0
+
+    - name: Prefer RAM over swap
+      ansible.posix.sysctl:
+        name: vm.swappiness
+        value: "10"
+        sysctl_set: true
+
+    # ---------- Packages ----------
+    - name: Install Docker, Git, Java and tools
+      ansible.builtin.apt:
+        name: [docker.io, docker-buildx, git, curl, fontconfig, openjdk-25-jre-headless]
+        update_cache: true
+        state: present
+
+    - name: Start Docker on boot
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # ---------- Jenkins ----------
+    - name: Add Jenkins signing key
+      ansible.builtin.get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        mode: "0644"
+
+    - name: Add Jenkins LTS apt repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/
+        filename: jenkins
+        state: present
+
+    - name: Install Jenkins
+      ansible.builtin.apt:
+        name: jenkins
+        update_cache: true
+        state: present
+
+    - name: Let Jenkins run Docker
+      ansible.builtin.user:
+        name: jenkins
+        groups: docker
+        append: true
+      notify: Restart Jenkins
+
+    - name: Folder for Jenkins service settings
+      ansible.builtin.file:
+        path: /etc/systemd/system/jenkins.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Jenkins service settings (small heap, no setup wizard, config as code)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/jenkins.service.d/override.conf
+        content: |
+          [Service]
+          Environment="JAVA_OPTS=-Djava.awt.headless=true -Xmx{{ jenkins_heap }} -Djenkins.install.runSetupWizard=false"
+          Environment="CASC_JENKINS_CONFIG={{ jenkins_home }}/casc.yaml"
+        mode: "0644"
+      notify: Restart Jenkins
+
+    - name: Find the latest plugin installation manager
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/jenkinsci/plugin-installation-manager-tool/releases/latest
+        return_content: true
+      register: pim_release
+
+    - name: Download plugin installation manager
+      ansible.builtin.get_url:
+        url: "{{ (pim_release.json.assets | selectattr('name', 'match', '^jenkins-plugin-manager-[0-9.]+\\.jar$') | first).browser_download_url }}"
+        dest: /opt/jenkins-plugin-manager.jar
+        mode: "0644"
+
+    - name: Install Jenkins plugins (with dependencies)
+      ansible.builtin.command: >
+        java -jar /opt/jenkins-plugin-manager.jar
+        --war /usr/share/java/jenkins.war
+        --plugin-download-directory {{ jenkins_home }}/plugins
+        --plugins {{ jenkins_plugins | join(' ') }}
+      args:
+        creates: "{{ jenkins_home }}/plugins/configuration-as-code.jpi"
+      become_user: jenkins
+      notify: Restart Jenkins
+
+    - name: Jenkins configuration as code (admin user + CloudSleuth pipeline job)
+      ansible.builtin.template:
+        src: templates/casc.yaml.j2
+        dest: "{{ jenkins_home }}/casc.yaml"
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+      notify: Restart Jenkins
+
+  handlers:
+    - name: Restart Jenkins
+      ansible.builtin.systemd:
+        name: jenkins
+        daemon_reload: true
+        enabled: true
+        state: restarted
+
+  post_tasks:
+    - name: Wait for Jenkins to answer
+      ansible.builtin.uri:
+        url: http://localhost:8080/login
+        status_code: 200
+      register: jenkins_up
+      until: jenkins_up.status == 200
+      retries: 60
+      delay: 5
+
+    - name: Done
+      ansible.builtin.debug:
+        msg: "Jenkins is up at http://{{ ansible_host }}:8080  (user: {{ jenkins_admin_user }}, password in infra/ansible/.jenkins-admin-password)"

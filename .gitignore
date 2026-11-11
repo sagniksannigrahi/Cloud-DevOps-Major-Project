@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+.DS_Store
+# Simulator data is generated on demand (make data)
+data/simulator/
+results/
+# Fault-lab runtime state
+faultlab/.state/
+
+# ---- DevOps: never commit secrets, keys or Terraform state ----
+*.pem
+*.key
+.jenkins-admin-password
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/.terraform.lock.hcl.bak
+*.tfvars
+# Sample report from another group (reference only, not ours to publish)
+Devops_sample_Report.pdf

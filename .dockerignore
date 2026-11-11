@@ -1,0 +1,14 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+results
+data/simulator
+demo_app
+faultlab
+infra
+*.pdf
+*.md
+!README.md
+.DS_Store

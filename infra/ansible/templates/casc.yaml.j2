@@ -1,0 +1,44 @@
+# Jenkins Configuration as Code, written by Ansible. Edits on the server are overwritten.
+jenkins:
+  systemMessage: "CloudSleuth CI/CD on AWS EC2 (configured by Ansible)"
+  numExecutors: 1                  # t3.micro: one build at a time
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "{{ jenkins_admin_user }}"
+          password: "{{ jenkins_admin_password }}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://{{ ansible_host }}:8080/"
+
+jobs:
+  - script: |
+      pipelineJob('cloudsleuth-pipeline') {
+        description('Build, test and deploy CloudSleuth from GitHub (pipeline defined in the repo Jenkinsfile)')
+        properties {
+          githubProjectUrl('{{ github_repo | regex_replace("\\.git$", "") }}')
+          pipelineTriggers {
+            triggers {
+              githubPush()
+              pollSCM { scmpoll_spec('H/5 * * * *') }
+            }
+          }
+        }
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('{{ github_repo }}') }
+                branch('*/{{ git_branch }}')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }
