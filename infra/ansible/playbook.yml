@@ -102,12 +102,20 @@
         state: directory
         mode: "0755"
 
+    - name: Jenkins temp folder on disk (Ubuntu 26.04 /tmp is a small RAM disk)
+      ansible.builtin.file:
+        path: "{{ jenkins_home }}/tmp"
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: "0755"
+
     - name: Jenkins service settings (small heap, no setup wizard, config as code)
       ansible.builtin.copy:
         dest: /etc/systemd/system/jenkins.service.d/override.conf
         content: |
           [Service]
-          Environment="JAVA_OPTS=-Djava.awt.headless=true -Xmx{{ jenkins_heap }} -Djenkins.install.runSetupWizard=false"
+          Environment="JAVA_OPTS=-Djava.awt.headless=true -Xmx{{ jenkins_heap }} -Djenkins.install.runSetupWizard=false -Djava.io.tmpdir={{ jenkins_home }}/tmp"
           Environment="CASC_JENKINS_CONFIG={{ jenkins_home }}/casc.yaml"
         mode: "0644"
       notify: Restart Jenkins
