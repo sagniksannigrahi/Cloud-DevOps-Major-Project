@@ -21,3 +21,7 @@ infra/terraform/.terraform.lock.hcl.bak
 *.tfvars
 # Sample report from another group (reference only, not ours to publish)
 Devops_sample_Report.pdf
+
+# Report sources and generated report files (kept locally)
+report_src/
+Cloud_DevOps_Major_Project_Report.*
