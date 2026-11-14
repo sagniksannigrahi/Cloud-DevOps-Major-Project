@@ -52,6 +52,9 @@ pipeline {
                         --restart unless-stopped \
                         --memory 300m \
                         -p $APP_PORT:8000 \
+                        -e BUILD_NUMBER=$TAG \
+                        -e GIT_COMMIT_SHORT=$(git rev-parse --short HEAD) \
+                        -e DEPLOYED_AT="$(date -u '+%Y-%m-%d %H:%M UTC')" \
                         $IMAGE:$TAG
                 '''
             }

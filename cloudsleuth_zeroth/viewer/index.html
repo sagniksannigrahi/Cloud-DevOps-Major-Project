@@ -2,97 +2,523 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>CloudSleuth-Zeroth-Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CloudSleuth: root-cause analysis for microservices</title>
 <style>
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; color: #222; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .sub { color: #666; margin-top: 0; }
-  fieldset { border: 1px solid #ccc; padding: 12px; }
-  label { margin-right: 14px; }
-  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-  th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
-  th { background: #f4f4f4; }
-  tr.top td { font-weight: bold; }
-  .support li { color: #155724; }
-  .contradict li { color: #8a1c1c; }
-  .note { background: #fff8e1; border: 1px solid #f0d78c; padding: 6px 10px; }
-  .box { border: 1px solid #ccc; padding: 10px; margin-top: 12px; }
-  footer { margin-top: 30px; color: #888; font-size: 13px; }
+  :root {
+    --bg: #f4f6fb; --card: #fff; --ink: #172033; --muted: #5b6478; --line: #e3e7ef;
+    --navy: #0f1b33; --blue: #2457d6; --blue-soft: #e8eefc;
+    --red: #d92d20; --red-soft: #fdeceb; --amber: #e8900c; --amber-soft: #fff4e0;
+    --green: #128a4a; --green-soft: #e6f6ed; --grey: #9aa3b5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); }
+  button, select { font: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header { background: var(--navy); color: #fff; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #22c1a4); display: grid; place-items: center; }
+  .brand b { font-size: 20px; letter-spacing: .2px; }
+  .brand span { display: block; font-size: 13px; color: #a9b4cc; }
+  .deploy { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); padding: 7px 14px; border-radius: 999px; font-size: 13px; color: #dbe3f3; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa3b5; }
+  .dot.ok { background: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.2); }
+  .hero { padding: 26px 0 30px; }
+  .hero h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.25; }
+  .hero p { margin: 0; color: #c3cce0; max-width: 760px; }
+
+  /* Cards and sections */
+  main.wrap { padding-top: 22px; padding-bottom: 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  .how { display: grid; grid-template-columns: 1fr 1.1fr; gap: 18px; margin-bottom: 18px; }
+  .flow { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+  .step { flex: 1 1 0; min-width: 96px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font-size: 13px; color: var(--muted); }
+  .step b { display: block; color: var(--ink); font-size: 14px; }
+  .step i { font-style: normal; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 11px; margin-bottom: 4px; }
+  .arrow { align-self: center; color: var(--grey); font-size: 13px; }
+  .flow .step.tool { text-align: center; min-width: 0; padding: 9px 4px; font-size: 12px; }
+  .flow .step.tool b { font-size: 13px; }
+
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+  .controls label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .seg { display: flex; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+  .seg button { flex: 1; border: 0; background: none; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .switch { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 14px; }
+  .switch input { display: none; }
+  .switch .t { width: 42px; height: 24px; border-radius: 999px; background: #cfd5e1; position: relative; cursor: pointer; transition: .2s; flex: none; }
+  .switch .t::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
+  .switch input:checked + .t { background: var(--green); }
+  .switch input:checked + .t::after { left: 21px; }
+  .btn { width: 100%; margin-top: 16px; padding: 10px; border: 0; border-radius: 9px; background: var(--blue); color: #fff; font-weight: 600; cursor: pointer; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: var(--blue-soft); color: var(--blue); margin-top: 8px; text-align: left; padding: 9px 12px; font-weight: 600; }
+  .btn.ghost small { display: block; font-weight: 400; color: var(--muted); }
+  .hr { height: 1px; background: var(--line); margin: 16px 0 4px; }
+
+  /* Results */
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .verdict { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+  .verdict.bad { background: var(--red-soft); border: 1px solid #f6c7c2; }
+  .verdict.okv { background: var(--green-soft); border: 1px solid #b8e3c9; }
+  .verdict.base { background: var(--blue-soft); border: 1px solid #c9d6f6; }
+  .verdict .big { font-size: 22px; font-weight: 700; }
+  .verdict .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .verdict .sep { width: 1px; align-self: stretch; background: rgba(0,0,0,.1); }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.on { background: var(--green-soft); color: var(--green); }
+  .pill.off { background: var(--red-soft); color: var(--red); }
+  .grid2 { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+  .sub { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .sub h3 { margin: 0 0 10px; font-size: 15px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+  svg text { font-family: inherit; }
+
+  .rank { list-style: none; margin: 0; padding: 0; }
+  .rank li { display: grid; grid-template-columns: 24px 92px 1fr 46px; gap: 8px; align-items: center; padding: 6px 0; font-size: 14px; }
+  .rank .n { color: var(--muted); font-size: 13px; }
+  .rank .barbg { height: 10px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+  .rank .barf { height: 100%; background: var(--grey); border-radius: 999px; }
+  .rank li.first .barf { background: var(--red); }
+  .rank li.first { font-weight: 700; }
+  .rank .s { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+
+  .ev { list-style: none; margin: 0; padding: 0; }
+  .ev li { display: flex; gap: 10px; padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 14px; }
+  .ev.sup li { background: var(--green-soft); }
+  .ev.con li { background: var(--red-soft); }
+  .ev .w { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 38px; }
+  .ev.sup .w { color: var(--green); }
+  .ev.con .w { color: var(--red); }
+  .ev .none { background: var(--bg) !important; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  .truth { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .truth button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 600; }
+  .result-ok { color: var(--green); font-weight: 700; }
+  .result-bad { color: var(--red); font-weight: 700; }
+  .note { font-size: 12px; color: var(--muted); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .lesson { margin-top: 16px; background: var(--amber-soft); border: 1px solid #f3d29a; border-radius: 12px; padding: 12px 16px; font-size: 14px; }
+  .mt { margin-top: 16px; }
+  .spin { display: inline-block; width: 16px; height: 16px; border: 2px solid #c9d6f6; border-top-color: var(--blue); border-radius: 50%; animation: r .8s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  footer.wrap { color: var(--muted); font-size: 13px; padding-bottom: 30px; }
+
+  html { scroll-behavior: smooth; }
+  .nav { display: flex; gap: 18px; font-size: 14px; }
+  .nav a { color: #c3cce0; text-decoration: none; }
+  .nav a:hover { color: #fff; }
+  .cta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .cta a { padding: 10px 18px; border-radius: 9px; font-weight: 600; text-decoration: none; font-size: 14px; }
+  .cta .primary { background: #3b82f6; color: #fff; }
+  .cta .second { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); }
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
+  .three .card p { margin: 0; color: var(--muted); }
+  .three .card b.t { display: block; font-size: 17px; margin-bottom: 6px; color: var(--ink); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; margin-bottom: 10px; }
+  .tag.p { background: var(--red-soft); color: var(--red); }
+  .tag.s { background: var(--blue-soft); color: var(--blue); }
+  .tag.r { background: var(--green-soft); color: var(--green); }
+  .req { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .req div { display: flex; gap: 10px; align-items: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--muted); }
+  .req b { display: block; color: var(--ink); font-size: 14px; }
+  .tick { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .results { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 14px; }
+  .tile { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .tile .lbl { font-size: 13px; color: var(--muted); }
+  .tile .hero { font-size: 30px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .hero small { font-size: 15px; color: var(--muted); font-weight: 500; }
+  .tile p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .hbars { list-style: none; margin: 8px 0 0; padding: 0; }
+  .hbars li { display: grid; grid-template-columns: 128px 1fr 52px; gap: 8px; align-items: center; font-size: 13px; padding: 4px 0; }
+  .hbars .track { height: 12px; background: #fff; border-radius: 4px; position: relative; }
+  .hbars .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: #9aa3b5; }
+  .hbars li.me .fill { background: var(--blue); }
+  .hbars li.me { font-weight: 700; }
+  .hbars .v { text-align: right; font-variant-numeric: tabular-nums; }
+  .hbars li:hover .fill { filter: brightness(.9); }
+  .sec { margin-bottom: 18px; }
+  .tour { counter-reset: t; }
+  .tour .btn.ghost { position: relative; padding-left: 40px; }
+  .tour .btn.ghost::before { counter-increment: t; content: counter(t); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 12px; display: grid; place-items: center; }
+  @media (max-width: 960px) {
+    .three, .req, .results { grid-template-columns: 1fr 1fr; }
+    .nav { display: none; }
+    .how, .layout, .grid2, .compare { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<h1>CloudSleuth-Zeroth-Prototype</h1>
-<p class="sub">Evidence-based root-cause analysis for microservices, early prototype (zeroth review)</p>
 
-<fieldset>
-  <label>Dataset <select id="dataset"></select></label>
-  <label>Case <select id="case"></select></label>
-  <label>Method
-    <select id="method">
-      <option value="D">D: evidence rules</option>
-      <option value="loudest">baseline: loudest alert</option>
-      <option value="random">baseline: random</option>
-    </select>
-  </label>
-  <label><input type="checkbox" id="nodb"> switch off database evidence</label>
-  <button id="run">Run diagnosis</button>
-</fieldset>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="brand">
+        <div class="logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+        </div>
+        <div><b>CloudSleuth</b><span>Evidence-based root-cause analysis for microservices</span></div>
+      </div>
+      <nav class="nav"><a href="#overview">Overview</a><a href="#results">Results</a><a href="#how">How it works</a><a href="#try">Try it</a></nav>
+    </div>
+    <div class="hero">
+      <div class="deploy" id="deploy" style="display:inline-flex;margin-bottom:16px"><span class="dot"></span><span>Checking deployment…</span></div>
+      <h1>When one service breaks, many look broken.<br>CloudSleuth finds the one that caused it.</h1>
+      <p>It reads metrics, traces, logs, recent changes and database statistics, ranks the likely causes,
+         and shows the evidence for and against its answer. On AWS, this page is deployed by a Jenkins pipeline on every push to GitHub.</p>
+      <div class="cta"><a class="primary" href="#try" id="ctaDemo">▶ Run the live demo</a><a class="second" href="#results">See the results</a></div>
+    </div>
+  </div>
+</header>
 
-<div id="out"></div>
+<main class="wrap">
+  <section class="three" id="overview">
+    <div class="card"><span class="tag p">The problem</span><b class="t">One failure, many alarms</b>
+      <p>In a microservice app, one broken part makes many services look unhealthy at once.
+         Engineers lose time finding the one that actually caused the outage.</p></div>
+    <div class="card"><span class="tag s">Our solution</span><b class="t">Rank the causes, show the evidence</b>
+      <p>CloudSleuth reads the telemetry, ranks the likely causes, names the fault type and lists the evidence
+         for and against, so a person can check its reasoning.</p></div>
+    <div class="card"><span class="tag r">The result</span><b class="t" id="resultLine">Finds the real cause in most cases</b>
+      <p id="resultSub">Delivered automatically: GitHub → Jenkins → Docker → AWS EC2, with every change tested before it goes live.</p></div>
+  </section>
 
-<footer>Simple viewer only. Planned: React dashboard, calibrated confidence and "not sure", learned ranker (method G).</footer>
+  <section class="card sec">
+    <h2>Course requirements: AWS + Git + Jenkins + a DevOps tool</h2>
+    <div class="req">
+      <div><span class="tick">✓</span><span><b>AWS</b>EC2 t3.micro (Ubuntu) runs Jenkins and this app</span></div>
+      <div><span class="tick">✓</span><span><b>Git &amp; GitHub</b>All code, incl. pipeline and infrastructure code</span></div>
+      <div><span class="tick">✓</span><span><b>Jenkins</b>Jenkinsfile pipeline: build, test, deploy, health check</span></div>
+      <div><span class="tick">✓</span><span><b>Docker + Ansible + Terraform</b>Three DevOps tools (one was required)</span></div>
+    </div>
+  </section>
+
+  <section class="card sec" id="results">
+    <h2>Results <span style="text-transform:none;letter-spacing:0;font-weight:400">· computed by running the code on this server, not typed in</span></h2>
+    <div class="results" id="resultsBox"><div class="tile"><span class="spin"></span>Running all methods on all cases…</div></div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="card">
+      <h2>How the diagnosis works</h2>
+      <div class="flow">
+        <div class="step"><i>1</i><b>Detect</b>Find metrics that stay unusual (median/MAD, 3 readings)</div>
+        <div class="arrow">›</div>
+        <div class="step"><i>2</i><b>Snapshot</b>Cut the telemetry around the incident start</div>
+        <div class="arrow">›</div>
+        <div class="step"><i>3</i><b>Attribute</b>Split time into OWN work vs WAITING on others</div>
+        <div class="arrow">›</div>
+        <div class="step"><i>4</i><b>Rank</b>Score = supporting − contradicting evidence</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>How this app reaches you (CI/CD)</h2>
+      <div class="flow">
+        <div class="step tool"><b>GitHub</b>git push</div>
+        <div class="arrow">›</div>
+        <div class="step tool"><b>Jenkins</b>pipeline</div>
+        <div class="arrow">›</div>
+        <div class="step tool"><b>Docker</b>build image</div>
+        <div class="arrow">›</div>
+        <div class="step tool"><b>pytest</b>tests in image</div>
+        <div class="arrow">›</div>
+        <div class="step tool"><b>AWS EC2</b>deploy :80</div>
+        <div class="arrow">›</div>
+        <div class="step tool"><b>/health</b>smoke test</div>
+      </div>
+      <p class="note mt" style="margin-bottom:0">If a test fails, the pipeline stops and the old version keeps running.
+        The server itself is set up by an <b>Ansible</b> playbook, and its firewall (ports 22, 80, 8080) is written in <b>Terraform</b>.</p>
+    </div>
+  </section>
+
+  <section class="layout">
+    <div class="card controls" id="try">
+      <h2>Try it: a 3-step tour</h2>
+      <div class="tour">
+      <button class="btn ghost" id="demoLock">▶ Database lock demo<small>A live case: a locked table in PostgreSQL</small></button>
+      <button class="btn ghost" id="demoCompare">⇄ With vs without database data<small>Same case, diagnosed both ways</small></button>
+      <button class="btn ghost" id="demoBaseline">⚖ Compare with a simple baseline<small>"Blame the loudest alarm" on the same case</small></button>
+      </div>
+      <div class="hr"></div>
+      <p class="note" style="margin:10px 0 0">Or pick any case yourself:</p>
+
+      <label class="f" for="dataset">Dataset</label>
+      <select id="dataset"></select>
+      <label class="f" for="case">Case</label>
+      <select id="case"></select>
+      <label class="f">Method</label>
+      <div class="seg" id="method">
+        <button data-m="D" class="on" title="Method D: evidence rules">Evidence</button>
+        <button data-m="loudest" title="Baseline: blame the biggest jump">Loudest</button>
+        <button data-m="random" title="Baseline: random guess">Random</button>
+      </div>
+      <label class="switch"><span>Use database evidence</span><input type="checkbox" id="usedb" checked><span class="t"></span></label>
+      <button class="btn" id="run">Run diagnosis</button>
+      <p class="note mt">The true answers are stored separately and are never read by the diagnosis. Reveal them only after diagnosing.</p>
+    </div>
+
+    <div id="out">
+      <div class="card empty">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#9aa3b5" stroke-width="1.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+        <p><b>Pick a case and press Run diagnosis</b><br>or start with the <b>Database lock demo</b> on the left.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">CloudSleuth-Zeroth-Prototype · SRM IST · The score is a raw score, not a calibrated probability (calibration is planned).</footer>
 
 <script>
-let allCases = {};
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const get = async (url, params) => {
+  const r = await fetch(url + (params ? '?' + new URLSearchParams(params) : ''));
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+};
 
-async function loadCases() {
-  allCases = await (await fetch('/api/cases')).json();
-  $('dataset').innerHTML = Object.keys(allCases)
-    .map(d => `<option value="${d}">${d} (${allCases[d].length} cases)</option>`).join('');
-  fillCases();
+const DEMO_DATASET = 'demo_app', DEMO_CASE = 'live-20261031-012855';
+let allCases = {}, topo = null, method = 'D';
+const nice = k => k ? k.replace(/_/g, ' ') : '';
+const meaning = k => topo && topo.fault_kinds[k] ? topo.fault_kinds[k].meaning : '';
+const methodName = m => ({D: 'Evidence rules (method D)', loudest: 'Baseline: loudest alert', random: 'Baseline: random guess'})[m];
+
+/* ---------- Service map (SVG) ---------- */
+const POS = { gateway: [70, 120], orders: [215, 120], inventory: [375, 40], payments: [375, 120], worker: [375, 200], postgres: [530, 120] };
+function serviceMap(result, truth) {
+  const anomalous = new Set((result.anomalies || []).map(a => a.node));
+  const rankOf = {};
+  if (result.incident) (result.ranking || []).slice(0, 3).forEach((r, i) => rankOf[r.node] = i + 1);
+  const truthSet = new Set(truth ? truth.root_causes : []);
+  const edges = [];
+  for (const [a, bs] of Object.entries(topo.calls)) bs.forEach(b => edges.push([a, b, false]));
+  edges.push(['orders', 'worker', true]);
+  topo.db_callers.forEach(s => edges.push([s, topo.database, false]));
+
+  let s = `<svg viewBox="0 0 600 250" width="100%" style="max-height:330px" role="img" aria-label="Service map">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#b8c0d0"/></marker></defs>`;
+  for (const [a, b, dashed] of edges) {
+    const [x1, y1] = POS[a], [x2, y2] = POS[b];
+    if (a === 'orders' && b === topo.database) {
+      s += `<path d="M${x1} ${y1 + 22} Q 375 300 ${x2 - 10} ${y2 + 22}" fill="none" stroke="#c9cfdb" stroke-width="1.6" marker-end="url(#ah)"/>`;
+      continue;
+    }
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ox = dx / L * 56, oy = dy / L * 24;
+    s += `<line x1="${x1 + ox}" y1="${y1 + oy}" x2="${x2 - ox}" y2="${y2 - oy}" stroke="#c9cfdb" stroke-width="1.6"
+            ${dashed ? 'stroke-dasharray="5 4"' : ''} marker-end="url(#ah)"/>`;
+  }
+  for (const [name, [x, y]] of Object.entries(POS)) {
+    const top = rankOf[name] === 1, anom = anomalous.has(name);
+    const fill = top ? '#fdeceb' : anom ? '#fff4e0' : '#f4f6fb';
+    const stroke = top ? '#d92d20' : anom ? '#e8900c' : '#c9cfdb';
+    const isDb = name === topo.database;
+    s += `<g>`;
+    if (top) s += `<rect x="${x - 62}" y="${y - 28}" width="124" height="56" rx="16" fill="none" stroke="#d92d20" stroke-opacity=".25" stroke-width="6"/>`;
+    s += `<rect x="${x - 56}" y="${y - 22}" width="112" height="44" rx="${isDb ? 8 : 12}" fill="${fill}" stroke="${stroke}" stroke-width="${top ? 2.5 : 1.6}"/>`;
+    s += `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="16" font-weight="${top ? 700 : 500}" fill="#172033">${isDb ? '⛁ ' : ''}${name}</text>`;
+    if (rankOf[name]) s += `<circle cx="${x + 54}" cy="${y - 20}" r="12" fill="${top ? '#d92d20' : '#5b6478'}"/><text x="${x + 54}" y="${y - 16}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">#${rankOf[name]}</text>`;
+    if (truthSet.has(name)) s += `<circle cx="${x - 54}" cy="${y - 20}" r="12" fill="#128a4a"/><text x="${x - 54}" y="${y - 16}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">✓</text>`;
+    s += `</g>`;
+  }
+  return s + `</svg>
+    <div class="legend"><span style="--c:#d92d20">Top cause</span><span style="--c:#e8900c">Showed unusual metrics</span>
+      <span style="--c:#c9cfdb">Normal</span>${truth ? '<span style="--c:#128a4a">True cause</span>' : ''}</div>`;
 }
-function fillCases() {
-  $('case').innerHTML = (allCases[$('dataset').value] || []).map(c => `<option>${c}</option>`).join('');
+
+/* ---------- Pieces of the result ---------- */
+function verdict(r) {
+  const db = `<span class="pill ${r.use_db_evidence ? 'on' : 'off'}">DB evidence ${r.use_db_evidence ? 'ON' : 'OFF'}</span>`;
+  if (!r.incident) return `<div class="verdict okv"><div><div class="lbl">Verdict</div><div class="big">No incident</div></div>
+      <div class="sep"></div><div>${esc(r.summary)}<br>${db}</div></div>`;
+  if (r.method !== 'D') return `<div class="verdict base"><div><div class="lbl">${esc(methodName(r.method))}</div>
+      <div class="big">${esc(r.ranking[0].node)}</div></div><div class="sep"></div>
+      <div>${r.method === 'loudest' ? 'Blames the service whose alarm jumped the most.' : 'Picks a service at random.'}
+        No evidence report and no fault type. Press <b>Reveal true answer</b> to check it.<br>${db}</div></div>`;
+  return `<div class="verdict bad">
+      <div><div class="lbl">Most likely cause</div><div class="big">${esc(r.top_cause)}</div></div><div class="sep"></div>
+      <div><div class="lbl">Fault type</div><div class="big" style="font-size:18px">${esc(nice(r.fault_type))}</div>
+        <div class="note">${esc(meaning(r.fault_type))}</div></div><div class="sep"></div>
+      <div><div class="lbl">Started at</div><div class="big" style="font-size:18px">t = ${r.onset_s} s</div></div><div class="sep"></div>
+      <div><div class="lbl">Raw score</div><div class="big" style="font-size:18px">${r.raw_score.toFixed(1)}</div>${db}</div>
+    </div>`;
 }
+
+function ranking(r, n = 6) {
+  if (!r.incident || !r.ranking.length) return '<p class="note">No candidates: nothing stayed unusual.</p>';
+  const rows = r.ranking.slice(0, n);
+  const max = Math.max(...rows.map(x => Math.abs(x.raw_score ?? 0)), 1);
+  return `<ul class="rank">${rows.map((x, i) => `
+    <li class="${i === 0 ? 'first' : ''}"><span class="n">#${i + 1}</span><span>${esc(x.node)}</span>
+      <span class="barbg"><span class="barf" style="display:block;width:${x.raw_score == null ? 0 : Math.max(3, Math.abs(x.raw_score) / max * 100)}%"></span></span>
+      <span class="s">${x.raw_score == null ? '–' : x.raw_score}</span></li>`).join('')}</ul>`;
+}
+
+function evidence(r) {
+  if (!r.evidence_report) return '';
+  const ev = r.evidence_report;
+  const li = (xs, sign) => xs.length ? xs.map(e => `<li><span class="w">${sign}${e.weight}</span><span>${esc(e.text)}</span></li>`).join('')
+                                      : '<li class="none">None</li>';
+  return `<div class="sub"><h3>Why ${esc(ev.cause)}? The evidence report</h3>
+      <div class="note" style="margin-bottom:6px">SUPPORTING</div><ul class="ev sup">${li(ev.support, '+')}</ul>
+      <div class="note" style="margin:10px 0 6px">CONTRADICTING</div><ul class="ev con">${li(ev.contradict, '−')}</ul></div>`;
+}
+
+function alerts(r) {
+  const a = (r.anomalies || []).slice().sort((x, y) => x.onset - y.onset || y.peak_z - x.peak_z);
+  if (!a.length) return '';
+  return `<div class="sub mt"><h3>Unusual metrics found in step 1 <span class="note">(${a.length})</span></h3>
+    <table><tr><th>Service</th><th>Metric</th><th>Normal</th><th>Peak</th><th>Unusual score</th></tr>
+    ${a.slice(0, 8).map(x => `<tr><td>${esc(x.node)}</td><td>${esc(nice(x.metric))}</td>
+      <td class="num">${x.baseline}</td><td class="num">${x.peak_value}</td><td class="num">${x.peak_z}</td></tr>`).join('')}
+    </table>${a.length > 8 ? `<p class="note">…and ${a.length - 8} more. Many services look unhealthy, but only one caused it.</p>` : ''}</div>`;
+}
+
+/* ---------- Views ---------- */
+let last = null;
+function render(r, dataset) {
+  last = {...r, dataset};
+  $('out').innerHTML = `<div class="card">
+    <h2>Case ${esc(r.case_id)} · ${esc(r.source === 'demo_app' ? 'live demo app' : 'simulator')} · ${esc(methodName(r.method))}</h2>
+    ${verdict(r)}
+    <div class="sub"><h3>Service map <span class="note">(arrows = who calls whom; dashed = job queue)</span></h3><div id="map">${serviceMap(r, null)}</div></div>
+    <div class="${r.evidence_report ? 'grid2 ' : ''}mt">
+      <div class="sub"><h3>Ranked causes</h3>${ranking(r)}</div>
+      ${evidence(r)}
+    </div>
+    ${alerts(r)}
+    <div class="truth"><button id="reveal">Reveal true answer</button><span id="truth"></span></div>
+  </div>`;
+  $('reveal').onclick = reveal;
+}
+
+async function reveal() {
+  const t = await get('/api/truth', {dataset: last.dataset, case: last.case_id});
+  const guess = last.incident && last.ranking.length ? last.ranking[0].node : null;
+  const right = t.root_causes.length ? t.root_causes.includes(guess) : !last.incident;
+  $('map').innerHTML = serviceMap(last, t);
+  $('truth').innerHTML = `Injected fault: <b>${esc(t.fault_kind === 'normal' ? 'none (normal case)' : nice(t.fault_kind))}</b>
+    ${t.root_causes.length ? ` in <b>${esc(t.root_causes.join(', '))}</b>` : ''} &nbsp;
+    <span class="${right ? 'result-ok' : 'result-bad'}">${right ? '✓ Diagnosis correct' : '✗ Diagnosis wrong'}</span>
+    <span class="note">(from the separate label file)</span>`;
+}
+
+async function compare() {
+  selectCase(DEMO_DATASET, DEMO_CASE);
+  loading('Diagnosing the same case twice…');
+  const base = {dataset: DEMO_DATASET, case: DEMO_CASE, method: 'D'};
+  const [on, off, t] = await Promise.all([get('/api/diagnose', {...base, no_db: false}),
+                                          get('/api/diagnose', {...base, no_db: true}),
+                                          get('/api/truth', {dataset: DEMO_DATASET, case: DEMO_CASE})]);
+  const col = (r, title) => {
+    const ok = t.root_causes.includes(r.top_cause);
+    return `<div class="sub"><h3>${title} ${r.use_db_evidence ? '<span class="pill on">DB evidence ON</span>' : '<span class="pill off">DB evidence OFF</span>'}</h3>
+      <div class="verdict ${ok ? 'okv' : 'bad'}"><div><div class="lbl">Blamed</div><div class="big">${esc(r.top_cause)}</div></div>
+        <div class="sep"></div><div><div class="lbl">Fault type</div><b>${esc(nice(r.fault_type))}</b></div></div>
+      ${serviceMap(r, t)}
+      <p class="${ok ? 'result-ok' : 'result-bad'}">${ok ? '✓ Correct' : '✗ Wrong'}: true cause is ${esc(t.root_causes.join(', '))}</p>
+      ${ranking(r, 4)}</div>`;
+  };
+  $('out').innerHTML = `<div class="card"><h2>Case ${esc(DEMO_CASE)} · same telemetry, two diagnoses</h2>
+    <div class="compare">${col(off, 'Without database data')}${col(on, 'With database data')}</div>
+    <div class="lesson"><b>What this shows:</b> a table in PostgreSQL was locked. Without database data, the time spent
+      waiting on the lock looks like the calling service's own work, so the wrong service is blamed.
+      With database data, CloudSleuth sees the lock waits and points at <b>postgres</b>.</div></div>`;
+}
+
+function loading(msg) { $('out').innerHTML = `<div class="card empty"><span class="spin"></span>${esc(msg)}</div>`; }
 
 async function run() {
-  const q = new URLSearchParams({dataset: $('dataset').value, case: $('case').value,
-                                 method: $('method').value, no_db: $('nodb').checked});
-  const r = await (await fetch('/api/diagnose?' + q)).json();
-  let h = `<h2>Case ${esc(r.case_id)}: method ${esc(r.method)}, database evidence ${r.use_db_evidence ? 'ON' : 'OFF'}</h2>`;
-  if (!r.incident) {
-    h += `<p><b>${esc(r.summary)}</b></p>`;
-  } else {
-    if (r.method === 'D') {
-      h += `<p>Top cause: <b>${esc(r.top_cause)}</b> &nbsp; Fault type: <b>${esc(r.fault_type)}</b> (${esc(r.fault_group)})</p>`;
-      h += `<p class="note">Confidence: raw score ${r.raw_score.toFixed(2)}, ${esc(r.confidence_note)}</p>`;
+  if (!$('case').value) return;
+  loading('Running the diagnosis…');
+  try {
+    const dataset = $('dataset').value;
+    render(await get('/api/diagnose', {dataset, case: $('case').value, method, no_db: !$('usedb').checked}), dataset);
+  } catch (e) { $('out').innerHTML = `<div class="card empty">Could not diagnose: ${esc(e.message)}</div>`; }
+}
+
+/* ---------- Controls ---------- */
+function fillCases() {
+  $('case').innerHTML = (allCases[$('dataset').value] || []).map(c => `<option>${esc(c)}</option>`).join('');
+}
+function selectCase(ds, c) {
+  if (!allCases[ds] || !allCases[ds].includes(c)) return false;
+  $('dataset').value = ds; fillCases(); $('case').value = c; return true;
+}
+function setMethod(m) {
+  method = m;
+  document.querySelectorAll('#method button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+}
+
+async function init() {
+  [allCases, topo] = await Promise.all([get('/api/cases'), get('/api/topology')]);
+  const label = {demo_app: 'Live demo app', simulator: 'Simulator'};
+  $('dataset').innerHTML = Object.keys(allCases)
+    .map(d => `<option value="${d}">${label[d] || d} (${allCases[d].length} cases)</option>`).join('');
+  if (!selectCase(DEMO_DATASET, DEMO_CASE)) fillCases();
+  const hasDemo = (allCases[DEMO_DATASET] || []).includes(DEMO_CASE);
+  $('demoLock').hidden = $('demoCompare').hidden = $('demoBaseline').hidden = !hasDemo;
+
+  try {
+    const i = await get('/api/info');
+    $('deploy').innerHTML = i.build
+      ? `<span class="dot ok"></span><span><b>Live</b> · ${esc(i.where)} · build #${esc(i.build)}${i.commit ? ' · commit ' + esc(i.commit) : ''}${i.deployed_at ? ' · ' + esc(i.deployed_at) : ''}</span>`
+      : `<span class="dot ok"></span><span>Running on your ${esc(i.where)}</span>`;
+  } catch { $('deploy').innerHTML = '<span class="dot"></span><span>Deployment info unavailable</span>'; }
+}
+
+/* ---------- Results (computed on the server) ---------- */
+const pct = (a, b) => b ? Math.round(1000 * a / b) / 10 : 0;
+async function loadResults() {
+  try {
+    const res = await get('/api/results');
+    const sim = res.simulator && res.simulator.methods, live = res.demo_app && res.demo_app.methods;
+    let h = '';
+    if (sim) {
+      const D = sim['D (evidence rules)'], noDb = sim['D, no DB evidence'];
+      const rows = [['CloudSleuth (D)', D, true], ['D without DB data', noDb], ['Loudest alarm', sim['Loudest alert']], ['Random guess', sim['Random']]];
+      h += `<div class="tile"><div class="lbl">Real cause ranked #1 · simulator, ${D.fault_cases} failure cases</div>
+        <ul class="hbars">${rows.map(([n, m, me]) => `<li class="${me ? 'me' : ''}" title="${esc(n)}: ${m.top1} of ${m.fault_cases} cases (${pct(m.top1, m.fault_cases)}%)">
+          <span>${esc(n)}</span><span class="track"><span class="fill" style="width:${pct(m.top1, m.fault_cases)}%"></span></span>
+          <span class="v">${pct(m.top1, m.fault_cases)}%</span></li>`).join('')}</ul></div>`;
+      const db = D.by_group.database || [0, 0], dbOff = noDb.by_group.database || [0, 0];
+      h += `<div class="tile"><div class="lbl">Database faults found</div><div class="hero">${db[0]}/${db[1]} <small>with DB data</small></div>
+        <p>Only <b>${dbOff[0]}/${dbOff[1]}</b> without it. That is why we collect database evidence.</p></div>`;
+      h += `<div class="tile"><div class="lbl">Healthy cases called healthy</div><div class="hero">${D.normal_ok}/${D.normal_cases}</div>
+        <p>No false alarm. The baselines always blame someone (${sim['Loudest alert'].normal_ok}/${D.normal_cases}).</p></div>`;
+      $('resultLine').textContent = `Right cause ranked #1 in ${pct(D.top1, D.fault_cases)}% of cases`;
+      $('resultSub').innerHTML = `vs ${pct(sim['Loudest alert'].top1, D.fault_cases)}% for "blame the loudest alarm". Delivered automatically: GitHub → Jenkins → Docker → AWS EC2.`;
     }
-    h += '<table><tr><th>#</th><th>Candidate</th><th>Raw score</th></tr>';
-    r.ranking.forEach((x, i) => {
-      h += `<tr class="${i === 0 ? 'top' : ''}"><td>${i + 1}</td><td>${esc(x.node)}</td><td>${x.raw_score ?? '-'}</td></tr>`;
-    });
-    h += '</table>';
-    if (r.evidence_report) {
-      const ev = r.evidence_report;
-      const li = xs => xs.length ? xs.map(e => `<li>[${e.weight}] ${esc(e.text)}</li>`).join('') : '<li>(none)</li>';
-      h += `<div class="box"><b>Evidence report for ${esc(ev.cause)}</b>
-            <p>Supporting:</p><ul class="support">${li(ev.support)}</ul>
-            <p>Contradicting:</p><ul class="contradict">${li(ev.contradict)}</ul></div>`;
+    if (live) {
+      const L = live['D (evidence rules)'];
+      h += `<div class="tile"><div class="lbl">Live app: real faults injected</div><div class="hero">${L.top1}/${L.fault_cases} <small>found</small></div>
+        <p>Real services in Docker, broken on purpose (DB lock, crash, CPU hog…). Normal run: ${L.normal_ok}/${L.normal_cases} called healthy.</p></div>`;
     }
-  }
-  h += `<p><button id="reveal">Reveal true answer</button> <span id="truth"></span></p>`;
-  $('out').innerHTML = h;
-  $('reveal').onclick = async () => {
-    const t = await (await fetch('/api/truth?' + new URLSearchParams({dataset: $('dataset').value, case: $('case').value}))).json();
-    $('truth').innerHTML = `True answer: <b>${esc(t.fault_kind)}</b> &rarr; ${esc(JSON.stringify(t.root_causes))} (label file, SHA-256 checked)`;
-  };
+    $('resultsBox').innerHTML = h + `<p class="note" style="grid-column:1/-1;margin:0">Honest note: the simulator numbers are optimistic,
+      because we wrote both the simulator and the rules. The score is not a calibrated probability yet.</p>`;
+  } catch (e) { $('resultsBox').innerHTML = `<p class="note">Results unavailable: ${esc(e.message)}</p>`; }
 }
 
 $('dataset').onchange = fillCases;
 $('run').onclick = run;
-loadCases();
+document.querySelectorAll('#method button').forEach(b => b.onclick = () => setMethod(b.dataset.m));
+$('demoLock').onclick = () => { selectCase(DEMO_DATASET, DEMO_CASE); setMethod('D'); $('usedb').checked = true; run(); };
+$('demoBaseline').onclick = () => { selectCase(DEMO_DATASET, DEMO_CASE); setMethod('loudest'); $('usedb').checked = true; run(); };
+$('ctaDemo').onclick = () => setTimeout(() => $('demoLock').click(), 350);
+$('demoCompare').onclick = () => compare().catch(e => { $('out').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
+init();
+loadResults();
 </script>
 </body>
 </html>

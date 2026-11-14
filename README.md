@@ -85,6 +85,23 @@ python3 -m cloudsleuth_zeroth.core.diagnose data/simulator/telemetry/sim-045.jso
 python3 -m cloudsleuth_zeroth.core.diagnose data/simulator/telemetry/sim-045.json --no-db-evidence
 ```
 
+## The web page (what to show in a demo)
+
+Open the app and use the **3-step tour** on the page:
+1. **Database lock demo**: a live case; CloudSleuth ranks `postgres` first, fault type `db_lock`, with its evidence.
+2. **With vs without database data**: the same case side by side; without DB data it blames the wrong service.
+3. **Compare with a simple baseline**: "blame the loudest alarm" on the same case, then **Reveal true answer**.
+
+Above the tour: the problem / solution / result in one line each, the course-requirement checklist
+(AWS, Git, Jenkins, Docker + Ansible + Terraform), and a results panel that the server computes by running
+every method on every case. On EC2 the header shows the live Jenkins build number and commit.
+
+Run it locally with Docker (no Python setup needed):
+
+```bash
+docker build -t cloudsleuth . && docker run --rm -p 8000:8000 cloudsleuth   # open http://localhost:8000
+```
+
 ## Tests and the viewer
 
 These need a one-time `pip install` into `.venv` (done automatically by make, needs internet once).
